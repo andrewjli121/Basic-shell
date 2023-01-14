@@ -20,7 +20,7 @@ int main(int argc, char **argv){
 			//Child
 			ret=execlp(cmd, cmd, NULL);
 			if (ret ==-1){
-			printf("Bad command\n");
+				printf("Bad command\n");
 			}
 		}
 		wait(NULL);

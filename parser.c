@@ -28,14 +28,13 @@ char** parse(char* str, char delim, char** ps_parse, int* ps_flag)  {
     return result;
 }
 
-void check_ps(char* str, char delim, char** saveptr, char** ps_parse) {
+void check_ps(char* str, char delim, char* saveptr[], char** ps_parse) {
     int i = 1;
     char* subtoken;
     for(str; ; str = NULL) {
         subtoken = strtok_r(str, &delim, saveptr);
         if(subtoken == NULL) break;
         ps_parse[i] = subtoken;
-        printf("%s\n", subtoken);
         i++;
     }
     ps_parse[i] = NULL;

@@ -14,13 +14,12 @@ int main(int argc, char **argv){
     char *cmd;
 	char **parsedcmd;
 	char **ps_parse;
-
     while (cmd = readline("> ")) {
 		ps_flag = 0;
 		parsedcmd = parse(cmd, ' ', ps_parse, &ps_flag);
 		if(ps_flag) {
 			for(int i = 0; ps_parse[i] != NULL; i++) {
-				printf("%i\n", i);
+				printf("%s\n", ps_parse[i]);
 			}
 		}
 		cpid = fork();

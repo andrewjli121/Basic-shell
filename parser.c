@@ -2,22 +2,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-void check_ps(char* str, char delim, char** saveptr, char** ps_parse);
+void check_ps(char* str, char delim, char* saveptr, char*** ps_parse);
 
-char** parse(char* str, char delim, char** ps_parse, int* ps_flag)  {
+char** parse(char* str, char delim, char*** ps_parse, int* ps_flag)  {
     int length = strlen(str);
     char** result = malloc(length * sizeof(char*));
     char* saveptr;
     char* subtoken;
+    char** ps_result;
     int i = 0;
     for(str; ; str = NULL) {
         subtoken = strtok_r(str, &delim, &saveptr);
         length--;
         if(subtoken == NULL) break;
-        if(strcmp(subtoken, "<")==0 || strcmp(subtoken, "<")==0 || strcmp(subtoken, "|") ==0 || strcmp(subtoken, "2<")==0) {
-            ps_parse = malloc(length * sizeof(char*));
-            *ps_parse = subtoken;
-            check_ps(str, delim, &saveptr, ps_parse);
+        if(strcmp(subtoken, "<")==0 || strcmp(subtoken, ">")==0 || strcmp(subtoken, "|") ==0 || strcmp(subtoken, "2>")==0) {
+            ps_result = malloc(length * sizeof(char*));
+            *ps_result = subtoken;
+            check_ps(str, delim, saveptr, &ps_result);
+            *ps_parse = ps_result;
             *ps_flag = 1;
             break;
         }
@@ -28,15 +30,15 @@ char** parse(char* str, char delim, char** ps_parse, int* ps_flag)  {
     return result;
 }
 
-void check_ps(char* str, char delim, char* saveptr[], char** ps_parse) {
+void check_ps(char* str, char delim, char* saveptr, char*** ps_result) {
     int i = 1;
     char* subtoken;
     for(str; ; str = NULL) {
-        subtoken = strtok_r(str, &delim, saveptr);
+        subtoken = strtok_r(str, &delim, &saveptr);
         if(subtoken == NULL) break;
-        ps_parse[i] = subtoken;
+        (*ps_result)[i] = subtoken;
         i++;
     }
-    ps_parse[i] = NULL;
+    (*ps_result)[i] = NULL;
     return;
 }

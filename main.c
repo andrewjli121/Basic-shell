@@ -6,6 +6,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "parser.c"
+#include "sighandler.c"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -19,89 +20,87 @@ int main(int argc, char **argv){
 	char **ps_parse;
 	int pfd[2];
 
-    while (cmd = readline("> ")) {
+    while (cmd = readline("# ")) {
 		ps_flag = 0;
 		int p = 0;
 		parsedcmd = parse(cmd, ' ', &ps_parse, &ps_flag);
-		if(ps_flag) {
+		signal(SIGINT, sighandler);
+		signal(SIGTSTP, sighandler);
+		signal(SIGCHLD, sighandler);
+		if(ps_flag != 0) {
 			int i = 0;
-			while(ps_parse[i] != NULL) {
+			
+			if(ps_flag == 2) {
+				//pipe
 				char* op = ps_parse[i];
 				char* file = ps_parse[i+1];
-				if(strcmp(op, "<") == 0) {
-					cpid_l = fork();
-					if(cpid_l == 0) {
-						fclose(fopen(file, "a"));
-						fd = open(file, O_RDONLY);
-						dup2(fd, 0);
-						ret = execvp(parsedcmd[0], parsedcmd);
-						if (ret ==-1){
-							fprintf(stderr, "Bad command\n");
-							break;
+				if(strcmp(op, "|") == 0) {
+						pipe(pfd);
+						cpid_l = fork();
+						if(cpid_l == 0) {
+							close(pfd[0]);
+							dup2(pfd[1],1);
+							close(pfd[1]);
+							if(i == 0) {
+								ret = execvp(parsedcmd[0], parsedcmd);
+								printf("ran");
+							}
+							else {
+								char* command = ps_parse[i-1];
+								ret = execlp(command,command,NULL);
+							}
+							if (ret ==-1){
+								//fprintf(stderr, "Bad command\n");
+								exit(1);
+							}
 						}
-					} else {
-						wait((int *)NULL);
-					}
-				}else if(strcmp(op, ">") == 0) {
-					cpid_l = fork();
-					if(cpid_l == 0) {
-						fclose(fopen(file, "a"));
-						fd = open(file, O_WRONLY);
-						dup2(fd, 1);
-						ret = execvp(parsedcmd[0], parsedcmd);
-						if (ret ==-1){
-							fprintf(stderr, "Bad command\n");
-							exit(1);
+						cpid_r = fork();
+						if(cpid_r == 0) {
+							char* command = ps_parse[i+1];
+							close(pfd[1]);
+							dup2(pfd[0],0);
+							close(pfd[0]);
+							ret = execlp(command, command, NULL);
+							if (ret ==-1){
+								//fprintf(stderr, "Bad command\n");
+								exit(1);
+							}
 						}
-					} else {
-						wait((int *)NULL);
-					}
-				} else if(strcmp(op, "2>") == 0) {
-					cpid_l = fork();
-					if(cpid_l == 0) {
-						fclose(fopen(file, "a"));
-						fd = open(file, O_WRONLY);
-						dup2(fd, 2);
-						ret = execvp(parsedcmd[0], parsedcmd);
-						if (ret ==-1){
-							fprintf(stderr, "Bad command\n");
-							exit(1);
-						}
-					} else {
-						wait((int *)NULL);
-					}
-				} else if(strcmp(op, "|") == 0) {
-					pipe(pfd);
-					cpid_l = fork();
-					if(cpid_l == 0) {
 						close(pfd[0]);
-						dup2(pfd[1],1);
 						close(pfd[1]);
-						ret = execvp(parsedcmd[0], parsedcmd);
-						if (ret ==-1){
-							fprintf(stderr, "Bad command\n");
-							exit(1);
-						}
-					}
-					cpid_r = fork();
-					if(cpid_r == 0) {
-						char* command = ps_parse[i+1];
-						close(pfd[1]);
-						dup2(pfd[0],0);
-						close(pfd[0]);
-						ret = execlp(command, command, NULL);
-						if (ret ==-1){
-							fprintf(stderr, "Bad command\n");
-							exit(1);
-						}
-					}
-					close(pfd[0]);
-					close(pfd[1]);
-					wait(NULL);
-					wait(NULL);
+						wait(NULL);
+						wait(NULL);
 				}
-				
-				i += 2;
+			} else {
+				//no pipe
+				cpid_l = fork();
+				if(cpid_l == 0) {
+					while(ps_parse[i] != NULL) {
+						char* op = ps_parse[i];
+						char* file = ps_parse[i+1];
+						if(strcmp(op, "<") == 0) {
+							fclose(fopen(file, "a"));
+							fd = open(file, O_RDONLY);
+							dup2(fd, 0);
+						}else if(strcmp(op, ">") == 0) {
+							fclose(fopen(file, "a"));
+							fd = open(file, O_WRONLY);
+							dup2(fd, 1);
+						} else if(strcmp(op, "2>") == 0) {
+							fclose(fopen(file, "a"));
+							fd = open(file, O_WRONLY);
+							dup2(fd, 2);
+						}
+						
+						i += 2;
+					}
+					ret = execvp(parsedcmd[0], parsedcmd);
+					if (ret ==-1){
+						exit(1);
+					}
+				} else {
+					wait((int *)NULL);
+				}
 			}
 		} else {
 			cpid_l = fork();
@@ -109,7 +108,7 @@ int main(int argc, char **argv){
 				//Child
 				ret=execvp(parsedcmd[0], parsedcmd);
 				if (ret ==-1){
-					printf("Bad command\n");
+					//fprintf(stderr, "Bad command\n");
 					break;
 				}
 			} else{

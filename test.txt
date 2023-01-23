@@ -1,6 +1,0 @@
-main
-main.c
-main.exe
-parser.c
-test.txt
-test2.txt

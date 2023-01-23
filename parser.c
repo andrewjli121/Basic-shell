@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void check_ps(char* str, char delim, char* saveptr, char*** ps_parse);
+void check_ps(char* str, char delim, char* saveptr, char*** ps_parse,int** ps_flag);
 
 char** parse(char* str, char delim, char*** ps_parse, int* ps_flag)  {
     int length = strlen(str);
@@ -18,9 +18,13 @@ char** parse(char* str, char delim, char*** ps_parse, int* ps_flag)  {
         if(strcmp(subtoken, "<")==0 || strcmp(subtoken, ">")==0 || strcmp(subtoken, "|") ==0 || strcmp(subtoken, "2>")==0) {
             ps_result = malloc(length * sizeof(char*));
             *ps_result = subtoken;
-            check_ps(str, delim, saveptr, &ps_result);
+            if(strcmp(subtoken, "|") == 0) {
+                *ps_flag = 2;
+            } else {
+                *ps_flag = 1;
+            }
+            check_ps(str, delim, saveptr, &ps_result, &ps_flag);
             *ps_parse = ps_result;
-            *ps_flag = 1;
             break;
         }
         result[i] = subtoken;
@@ -30,12 +34,15 @@ char** parse(char* str, char delim, char*** ps_parse, int* ps_flag)  {
     return result;
 }
 
-void check_ps(char* str, char delim, char* saveptr, char*** ps_result) {
+void check_ps(char* str, char delim, char* saveptr, char*** ps_result, int** ps_flag) {
     int i = 1;
     char* subtoken;
     for(str; ; str = NULL) {
         subtoken = strtok_r(str, &delim, &saveptr);
         if(subtoken == NULL) break;
+        if(strcmp(subtoken, "|") == 0) {
+            **ps_flag = 2;
+        }
         (*ps_result)[i] = subtoken;
         i++;
     }

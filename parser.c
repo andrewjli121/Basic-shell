@@ -15,7 +15,7 @@ char** parse(char* str, char delim, char*** ps_parse, int* ps_flag)  {
         subtoken = strtok_r(str, &delim, &saveptr);
         length--;
         if(subtoken == NULL) break;
-        if(strcmp(subtoken, "<")==0 || strcmp(subtoken, ">")==0 || strcmp(subtoken, "|") ==0 || strcmp(subtoken, "2>")==0) {
+        if(strcmp(subtoken, "<")==0 || strcmp(subtoken, ">")==0 || strcmp(subtoken, "|") ==0 || strcmp(subtoken, "2>")==0 || strcmp(subtoken, "&") == 0) {
             ps_result = malloc(length * sizeof(char*));
             *ps_result = subtoken;
             if(strcmp(subtoken, "|") == 0) {

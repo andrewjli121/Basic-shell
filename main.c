@@ -14,22 +14,26 @@
 int main(int argc, char **argv){
 
     int cpid_l, cpid_r, ret, fd, fd2;
-	int ps_flag = 0;
     char *cmd;
 	char **parsedcmd;
 	char **ps_parse;
-	int pfd[2];
+	pid_t pfd[2];
+	int* pgid = malloc(20 * sizeof(int));
+	char*** job_desc = malloc(20 * sizeof(char**));
+	char** run_stop = malloc(20 * sizeof(char*));
+	int job_i = 0;
 
     while (cmd = readline("# ")) {
+		int ps_flag = 0;
 		ps_flag = 0;
 		int p = 0;
+
 		parsedcmd = parse(cmd, ' ', &ps_parse, &ps_flag);
 		signal(SIGINT, sighandler);
 		signal(SIGTSTP, sighandler);
 		signal(SIGCHLD, sighandler);
 		if(ps_flag != 0) {
 			int i = 0;
-			
 			if(ps_flag == 2) {
 				//pipe
 				char* op = ps_parse[i];
@@ -102,11 +106,39 @@ int main(int argc, char **argv){
 				wait(NULL);
 			} else {
 				//no pipe
+
+				//Jobs
+				for(int i = 0; ps_parse[i] != NULL; i++) {
+					if(strcmp(ps_parse[i], "&") == 0) {
+						setpgid(0,0);
+						for(int i = job_i+1; i > 0; i++) {
+							pgid[i] = pgid[i-1];
+							job_desc[i] = job_desc[i-1];
+							run_stop[i] = run_stop[i-1];
+						}
+						pgid[0] = getpid();
+						run_stop[0] = "Running"; //CHANGEEEEEEEEEEEEEEE
+						int x = 0;
+						for(int i = 0; parsedcmd[i] != NULL; i++) {
+							job_desc[0][i] = strcpy(job_desc[0][i], parsedcmd[i]);
+							x++;
+						}
+						for(int i = 0; ps_parse[i] != NULL; i++) {
+							job_desc[0][x] = strcpy(job_desc[0][x], ps_parse[i]);
+							x++;
+						}
+						job_i++;
+					}
+				}
+
+				//File redirection
 				cpid_l = fork();
 				if(cpid_l == 0) {
 					while(ps_parse[i] != NULL) {
+
 						char* op = ps_parse[i];
 						char* file = ps_parse[i+1];
+						i++;
 						if(strcmp(op, "<") == 0) {
 							fclose(fopen(file, "a"));
 							fd = open(file, O_RDONLY);
@@ -135,6 +167,23 @@ int main(int argc, char **argv){
 			cpid_l = fork();
 			if (cpid_l ==0){
 				//Child
+				if(strcmp(parsedcmd[0], "fg") == 0) {
+					//tcsetpgrp();
+				}
+
+				if(strcmp(parsedcmd[0], "jobs") == 0) {
+					for(int i = 0; i < job_i; i++) {
+						printf("[%i]", i+1);
+						printf("-\t");	//change this
+						printf("%s\t\t", run_stop[i]);
+						for(int j = 0; job_desc[i][j]; j++) {
+							printf("%s ", job_desc[i][j]);
+						}
+						printf("\n");
+					}
+					break;
+				}
+
 				ret=execvp(parsedcmd[0], parsedcmd);
 				if (ret ==-1){
 					//fprintf(stderr, "Bad command\n");

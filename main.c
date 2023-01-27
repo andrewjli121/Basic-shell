@@ -6,10 +6,25 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "parser.c"
-#include "sighandler.c"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+struct job_list* head = NULL;
+
+void sighandler(int s) {
+	if(s == SIGTSTP) {
+		tcsetpgrp(0,0);
+	}
+	struct job_list* curr = head;
+	struct job_list* prev;
+	while(curr) {
+		if(curr->status == 2) {
+
+		}
+		prev = curr;
+		curr = curr->nextptr;
+	}
+}
 
 int main(int argc, char **argv){
 
@@ -18,20 +33,16 @@ int main(int argc, char **argv){
 	char **parsedcmd;
 	char **ps_parse;
 	pid_t pfd[2];
-	int* pgid = malloc(20 * sizeof(int));
-	char*** job_desc = malloc(20 * sizeof(char**));
-	char** run_stop = malloc(20 * sizeof(char*));
-	int job_i = 0;
-
+	signal(SIGINT, SIG_IGN);
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
     while (cmd = readline("# ")) {
 		int ps_flag = 0;
 		ps_flag = 0;
 		int p = 0;
 
 		parsedcmd = parse(cmd, ' ', &ps_parse, &ps_flag);
-		signal(SIGINT, sighandler);
-		signal(SIGTSTP, sighandler);
-		signal(SIGCHLD, sighandler);
+		signal(SIGCHLD, &sighandler);
 		if(ps_flag != 0) {
 			int i = 0;
 			if(ps_flag == 2) {
@@ -41,6 +52,9 @@ int main(int argc, char **argv){
 				pipe(pfd);
 				cpid_l = fork();
 				if(cpid_l == 0) {
+					signal(SIGINT, SIG_DFL);
+					signal(SIGTTIN, SIG_DFL);
+					signal(SIGTSTP, SIG_DFL);
 					close(pfd[0]);
 					dup2(pfd[1],1);
 					close(pfd[1]);
@@ -70,6 +84,9 @@ int main(int argc, char **argv){
 				}
 				cpid_r = fork();
 				if(cpid_r == 0) {
+					signal(SIGINT, SIG_DFL);
+					signal(SIGTTIN, SIG_DFL);
+					signal(SIGTSTP, SIG_DFL);
 					char* command = ps_parse[i+3];
 					i += 4;
 					close(pfd[1]);
@@ -107,33 +124,47 @@ int main(int argc, char **argv){
 			} else {
 				//no pipe
 
-				//Jobs
+				//File redirection
+				//LL Job adding
 				for(int i = 0; ps_parse[i] != NULL; i++) {
 					if(strcmp(ps_parse[i], "&") == 0) {
 						setpgid(0,0);
-						for(int i = job_i+1; i > 0; i++) {
-							pgid[i] = pgid[i-1];
-							job_desc[i] = job_desc[i-1];
-							run_stop[i] = run_stop[i-1];
+						struct job_list *job = (struct job_list*) malloc(sizeof(struct job_list));
+						job->status = 1;
+						job->cpid_l = cpid_l;
+						job->desc = parsedcmd;
+						int j = 0;
+						while(job->desc[j] != NULL) {
+							j++;
 						}
-						pgid[0] = getpid();
-						run_stop[0] = "Running"; //CHANGEEEEEEEEEEEEEEE
-						int x = 0;
-						for(int i = 0; parsedcmd[i] != NULL; i++) {
-							job_desc[0][i] = strcpy(job_desc[0][i], parsedcmd[i]);
-							x++;
+						job->desc[j] = ps_parse[0];
+						job->nextptr = NULL;
+						int count = 0;
+						struct job_list* hold = head;
+						while(head != NULL) {
+							count++;
+							head = head->nextptr;
 						}
-						for(int i = 0; ps_parse[i] != NULL; i++) {
-							job_desc[0][x] = strcpy(job_desc[0][x], ps_parse[i]);
-							x++;
+						head = hold;
+						job->jobid = count + 1;
+						if(head != NULL) {
+							while(head->nextptr != NULL) {
+								head = head->nextptr;
+							}
+							head->nextptr = job;
+							head = hold;
+						} else {
+							head = job;
 						}
-						job_i++;
+						
 					}
 				}
 
-				//File redirection
 				cpid_l = fork();
 				if(cpid_l == 0) {
+					signal(SIGINT, SIG_DFL);
+					signal(SIGTTIN, SIG_DFL);
+					signal(SIGTSTP, SIG_DFL);
 					while(ps_parse[i] != NULL) {
 
 						char* op = ps_parse[i];
@@ -163,34 +194,72 @@ int main(int argc, char **argv){
 					wait((int *)NULL);
 				}
 			}
-		} else {
-			cpid_l = fork();
-			if (cpid_l ==0){
-				//Child
-				if(strcmp(parsedcmd[0], "fg") == 0) {
-					//tcsetpgrp();
+		} else {	//Normal commands
+			if(strcmp(parsedcmd[0], "fg") == 0) {
+				struct job_list* top = head;
+				head = head->nextptr;
+				tcsetpgrp(0, top->cpid_l);
+				kill(top->cpid_l, SIGCONT);
+				for(int i = 0; strcmp(top->desc[i], "&") != 0; i++) {
+					printf("%s ", top->desc[i]);
 				}
-
-				if(strcmp(parsedcmd[0], "jobs") == 0) {
-					for(int i = 0; i < job_i; i++) {
-						printf("[%i]", i+1);
-						printf("-\t");	//change this
-						printf("%s\t\t", run_stop[i]);
-						for(int j = 0; job_desc[i][j]; j++) {
-							printf("%s ", job_desc[i][j]);
+				printf("\n");
+				waitpid(-1 * top->cpid_l, &(top->status), WUNTRACED);
+			} else if(strcmp(parsedcmd[0], "jobs") == 0) {
+				struct job_list* hold = head;
+				while(head != NULL) {
+					printf("[%i] ", head->jobid);
+					if(head == hold) {
+						printf("+ ");
+					}
+					else {
+						printf("- ");
+					}
+					if(head->status == 0) {
+						printf("Stopped\t");
+					}
+					else if(head->status == 1) {
+						printf("Running\t");
+					}
+					for(int i = 0; strcmp(head->desc[i], "&") != 0; i++) {
+						printf("%s ", head->desc[i]);
+					}
+					printf("\n");
+					fflush(stdout);
+					head = head->nextptr;
+				}
+				head = hold;
+			} else if(strcmp(parsedcmd[0], "bg") == 0) {
+				struct job_list* top = head;
+				while(top) {
+					if(top->status == 0) {
+						kill(top->cpid_l, SIGCONT);
+						for(int i = 0; strcmp(top->desc[i], "&") != 0; i++) {
+							printf("%s ", top->desc[i]);
 						}
 						printf("\n");
+						waitpid(-1 * top->cpid_l, &(top->status), WNOHANG);
+						break;
 					}
-					break;
-				}
+					top = top->nextptr;
+				}			
+			} else {
+				cpid_l = fork();
+				if (cpid_l == 0){
+					//Child
+					signal(SIGINT, SIG_DFL);
+					signal(SIGTTIN, SIG_DFL);
+					signal(SIGTSTP, SIG_DFL);
 
-				ret=execvp(parsedcmd[0], parsedcmd);
-				if (ret ==-1){
-					//fprintf(stderr, "Bad command\n");
-					break;
+					setpgid(0,0);
+					ret=execvp(parsedcmd[0], parsedcmd);
+					if (ret ==-1){
+						//fprintf(stderr, "Bad command\n");
+						break;
+					}
+				} else{
+					wait((int *)NULL);
 				}
-			} else{
-				wait((int *)NULL);
 			}
 		}
 

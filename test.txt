@@ -1,1 +1,8 @@
-a
+main
+main.c
+main.exe
+parser.c
+sighandler.c
+t.txt
+test.txt
+test2.txt

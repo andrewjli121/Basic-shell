@@ -2,6 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct job_list {
+    int jobid;
+    int status; //0 stopped, 1 running, 2 done
+    char** desc;
+    struct job_list *nextptr;
+    int cpid_l;
+    int cpid_r;
+};
+
 void check_ps(char* str, char delim, char* saveptr, char*** ps_parse,int** ps_flag);
 
 char** parse(char* str, char delim, char*** ps_parse, int* ps_flag)  {

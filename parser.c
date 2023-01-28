@@ -9,6 +9,7 @@ struct job_list {
     struct job_list *nextptr;
     int cpid_l;
     int cpid_r;
+    pid_t rv;
 };
 
 void check_ps(char* str, char delim, char* saveptr, char*** ps_parse,int** ps_flag);

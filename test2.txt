@@ -1,15 +1,1 @@
-main
-main.c
-main.exe
-parser.c
-t.txt
-test.txt
-test2.txt
- test.txt
-:15 main
--rwxrwxrwx 1 andrewjli121 andrewjli121  10071 Jan 27 18:15 main.c
--rwxrwxrwx 1 andrewjli121 andrewjli121 254813 Jan 13 19:45 main.exe
--rwxrwxrwx 1 andrewjli121 andrewjli121   1754 Jan 25 16:19 parser.c
--rwxrwxrwx 1 andrewjli121 andrewjli121     68 Jan 23 11:37 t.txt
--rwxrwxrwx 1 andrewjli121 andrewjli121     68 Jan 27 18:14 test.txt
--rwxrwxrwx 1 andrewjli121 andrewjli121      1 Jan 23 11:36 test2.txt
+wc: tesaaa.txt: No such file or directory

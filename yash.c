@@ -142,8 +142,9 @@ int main(int argc, char **argv){
 						pp_index++;
 					}
 					int command = pp_index + 1;
+					pp_index++;
 					while(ps_parse[pp_index] && strcmp(ps_parse[pp_index], "<") != 0 && strcmp(ps_parse[pp_index], ">") != 0 
-						&& strcmp(ps_parse[pp_index], "2>") != 0) {
+						&& strcmp(ps_parse[pp_index], "2>") != 0 && strcmp(ps_parse[pp_index], "|") != 0 && strcmp(ps_parse[pp_index], "&") != 0) {
 						pp_index++;
 					}
 					int end_good = pp_index;

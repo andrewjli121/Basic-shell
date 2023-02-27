@@ -16,9 +16,13 @@ void sighandler(int s) {
 	struct job_list* curr = head;
 	struct job_list* prev;
 	while(curr) {
+		prev = curr;
 		pid_t rv = waitpid(curr->cpid_l, &status, WNOHANG);
 		if(rv && WIFEXITED(status)) {
 			curr->status = 2;
+		}
+		if(status == 2 || status == 9) {
+			curr->status = 3;
 		}
 		curr = curr->nextptr;
 	}
@@ -188,7 +192,23 @@ int main(int argc, char **argv){
 					struct job_list *job = (struct job_list*) malloc(sizeof(struct job_list));
 					job->status = 0;
 					job->cpid_l = cpid_l;
-					job->desc = parsedcmd;
+					int leng1 = 0;
+					while(parsedcmd[leng1] != NULL) {
+						leng1++;
+					}
+					int leng2 = 0;
+					while(ps_parse[leng2] != NULL) {
+						leng2++;
+					}
+					int total_length = leng1 + leng2 + 1;
+					job->desc = malloc(total_length * sizeof(char*));
+					for(int k = 0; parsedcmd[k] != NULL; k++) {
+						job->desc[k] = parsedcmd[k];
+					}
+					for(int k = 0; ps_parse[k] != NULL; k++) {
+						job->desc[k+leng1] = ps_parse[k];
+					}
+					job->desc[total_length-1] = NULL;
 					job->nextptr = NULL;
 					int count = 0;
 					struct job_list* hold = head;
@@ -352,25 +372,86 @@ int main(int argc, char **argv){
 			}
 		} else {	//Normal commands
 			if(strcmp(parsedcmd[0], "fg") == 0) {
+				struct job_list* curr = head;
+				struct job_list* prev;
+				while(curr) {
+					if(head == curr && curr->status == 3) {
+						head = head->nextptr;
+						free(curr->desc);
+						free(curr);
+						curr = head;
+						continue;
+					}
+					if(head == curr && curr->status == 2) {
+						head = head->nextptr;
+						printf("[%i] ", curr->jobid);
+						printf("- ");
+						printf("Done\t");
+						for(int i = 0; curr->desc[i] != NULL; i++) {
+							printf("%s ", curr->desc[i]);
+						}
+						printf("\n");
+						fflush(stdout);
+						free(curr->desc);
+						free(curr);
+						curr = head;
+						continue;
+					}
+					prev = curr;
+					curr = curr->nextptr;
+					if(curr && curr->status == 3) {
+						prev->nextptr = curr->nextptr;
+						free(curr->desc);
+						free(curr);
+						curr = curr->nextptr;
+						continue;
+					}
+					if(curr && curr->status == 2) {
+						prev->nextptr = curr->nextptr;
+						printf("[%i] ", curr->jobid);
+						printf("- ");
+						printf("Done\t");
+						for(int i = 0; curr->desc[i] != NULL; i++) {
+							printf("%s ", curr->desc[i]);
+						}
+						printf("\n");
+						fflush(stdout);
+						free(curr->desc);
+						free(curr);
+						curr = curr->nextptr;
+					}
+				}
+				
 				struct job_list* hold = head;
-				struct job_list* top = head;
-				while(head->nextptr) {
-					top = head;
-					head = head->nextptr;
+				struct job_list* top = NULL;
+				while(head && head->nextptr) {
+					if(head->status < 2) {
+						top = head;
+						head = head->nextptr;
+					}
 				}
 				if(head) {
-					tcsetpgrp(1, head->cpid_l);
-					kill(head->cpid_l, SIGCONT);
+					tcsetpgrp(0, head->cpid_l);
+					kill(-1 * head->cpid_l, SIGCONT);
 					for(int i = 0; head->desc[i] != NULL; i++) {
 						printf("%s ", head->desc[i]);
 					}
 					printf("\n");
 					waitpid(-1 * head->cpid_l, &status, WUNTRACED);
 					if(WIFSTOPPED(status)) {
-						top->nextptr = head;
+						if(top) {
+							top->nextptr = head;
+						}
+						head->status = 0;
 						head = hold;
+						
 					}
-					tcsetpgrp(1, p_pid);
+					else if(top) {
+						top->nextptr = head->nextptr;
+					} else {
+						hold = NULL;
+					}
+					tcsetpgrp(0, p_pid);
 				}
 				head = hold;
 				continue;
@@ -378,6 +459,12 @@ int main(int argc, char **argv){
 				struct job_list* curr = head;
 				struct job_list* prev;
 				while(curr) {
+					if(head == curr && curr->status == 3) {
+						head = head->nextptr;
+						free(curr->desc);
+						free(curr);
+						continue;
+					}
 					if(head == curr && curr->status == 2) {
 						head = head->nextptr;
 						printf("[%i] ", curr->jobid);
@@ -394,6 +481,11 @@ int main(int argc, char **argv){
 					}
 					prev = curr;
 					curr = curr->nextptr;
+					if(curr && curr->status == 3) {
+						prev->nextptr = curr->nextptr;
+						free(curr->desc);
+						free(curr);
+					}
 					if(curr && curr->status == 2) {
 						prev->nextptr = curr->nextptr;
 						printf("[%i] ", curr->jobid);
@@ -437,22 +529,25 @@ int main(int argc, char **argv){
 				continue;
 			} else if(strcmp(parsedcmd[0], "bg") == 0) {
 				struct job_list* top = head;
-				while(top->nextptr) {
+				struct job_list* last = NULL;
+				while(top) {
+					if(top->status == 0) {
+						last = top;
+						
+					}
 					top = top->nextptr;
 				}
-				while(top) {
-						kill(top->cpid_l, SIGCONT);
-						printf("[%i]", top->jobid);
-						printf("+ ");
-						for(int i = 0; top->desc[i] != NULL; i++) {
-							printf("%s ", top->desc[i]);
-						}
-						printf("&");
-						printf("\n");
-						waitpid(-1 * top->cpid_l, &status, WNOHANG);
-						break;
-				}
-				continue;			
+				if(last) {
+					last->status = 1;
+					kill(-1 * last->cpid_l, SIGCONT);
+					printf("[%i]", last->jobid);
+					printf("+ ");
+					for(int i = 0; last->desc[i] != NULL; i++) {
+						printf("%s ", last->desc[i]);
+					}
+					printf("\n");
+					waitpid(-1 * last->cpid_l, &status, WNOHANG);
+				}			
 			} else {
 				cpid_l = fork();
 				setpgid(cpid_l, cpid_l);
